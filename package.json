@@ -1,0 +1,26 @@
+{
+  "name": "digital-wardrobe",
+  "version": "0.1.0",
+  "private": true,
+  "description": "数字衣橱：手机吸附硬件 + 穿搭 App + Web 管理后台（全 TypeScript monorepo）",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "typecheck": "npm run typecheck --workspaces",
+    "lint": "npm run lint --workspaces",
+    "dev:api": "npm run start:dev --workspace @dw/api",
+    "dev:web": "npm run dev --workspace @dw/web-admin",
+    "prisma:generate": "npm run prisma:generate --workspace @dw/api",
+    "prisma:migrate": "npm run prisma:migrate --workspace @dw/api",
+    "seed": "npm run seed --workspace @dw/api"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.4"
+  }
+}
