@@ -1,0 +1,207 @@
+// 数字衣橱 Prisma 数据模型
+// 开发期使用 SQLite；模型仅使用跨数据库通用类型（cuid / now() / String 枚举 / String 存 JSON 文本 / Float），
+// 切换 PostgreSQL 时仅需修改下方 datasource 的 provider 与 DATABASE_URL，模型本身零改动。
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------- 用户 ----------------
+model User {
+  id           String   @id @default(cuid())
+  nickname     String
+  phone        String?  @unique
+  wechatOpenId String?  @unique
+  appleId      String?  @unique
+  avatar       String?
+  gender       String   @default("UNKNOWN") // 取值见 shared: Gender
+  signature    String?
+  city         String?
+  height       Float?
+  style        String?
+  passwordHash String?
+  status       String   @default("ACTIVE") // 取值见 shared: UserStatus
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  clothing    Clothing[]
+  outfits     Outfit[]
+  comments    Comment[]
+  devices     Device[]
+  notifications Notification[]
+  feedback    Feedback[]
+  likes       Like[]
+  favorites   Favorite[]
+  followsAsFollower  Follow[] @relation("follower")
+  followsAsFollowing Follow[] @relation("following")
+}
+
+// ---------------- 衣物 ----------------
+model Clothing {
+  id            String   @id @default(cuid())
+  userId        String
+  name          String
+  category      String // 取值见 shared: ClothingCategory
+  color         String?
+  seasons       String   @default("[]") // Season[] 序列化后的 JSON 文本，应用层 parse
+  occasion      String? // 取值见 shared: Occasion
+  imageUrl      String?
+  purchasePrice Float?
+  wearCount     Int      @default(0)
+  status        String   @default("IN_USE") // 取值见 shared: ClothingStatus
+  tags          String   @default("[]") // 数组序列化后的 JSON 文本，应用层 parse
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user        User         @relation(fields: [userId], references: [id])
+  outfitItems OutfitItem[]
+
+  @@index([userId])
+}
+
+// ---------------- 穿搭 ----------------
+model Outfit {
+  id            String   @id @default(cuid())
+  userId        String
+  date          DateTime
+  mood          String? // 取值见 shared: Mood
+  imageUrl      String?
+  content       String?
+  tags          String   @default("[]") // 数组序列化后的 JSON 文本，应用层 parse
+  isPublished   Boolean  @default(false)
+  auditStatus   String   @default("PENDING") // 取值见 shared: AuditStatus
+  likeCount     Int      @default(0)
+  commentCount  Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user     User          @relation(fields: [userId], references: [id])
+  items    OutfitItem[]
+  comments Comment[]
+  likes    Like[]
+  favorites Favorite[]
+
+  @@index([userId])
+}
+
+// ---------------- 穿搭-单品关联 ----------------
+model OutfitItem {
+  id         String @id @default(cuid())
+  outfitId   String
+  clothingId String
+
+  outfit   Outfit   @relation(fields: [outfitId], references: [id], onDelete: Cascade)
+  clothing Clothing @relation(fields: [clothingId], references: [id])
+
+  @@unique([outfitId, clothingId])
+  @@index([clothingId])
+}
+
+// ---------------- 评论 ----------------
+model Comment {
+  id        String   @id @default(cuid())
+  outfitId  String
+  userId    String
+  content   String
+  parentId  String?
+  likeCount Int      @default(0)
+  createdAt DateTime @default(now())
+
+  outfit  Outfit    @relation(fields: [outfitId], references: [id], onDelete: Cascade)
+  user    User      @relation(fields: [userId], references: [id])
+  parent  Comment?  @relation("replies", fields: [parentId], references: [id])
+  replies Comment[] @relation("replies")
+
+  @@index([outfitId])
+  @@index([userId])
+}
+
+// ---------------- 点赞 ----------------
+model Like {
+  id       String @id @default(cuid())
+  userId   String
+  outfitId String
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  outfit Outfit @relation(fields: [outfitId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, outfitId])
+  @@index([outfitId])
+}
+
+// ---------------- 收藏 ----------------
+model Favorite {
+  id       String @id @default(cuid())
+  userId   String
+  outfitId String
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  outfit Outfit @relation(fields: [outfitId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, outfitId])
+  @@index([outfitId])
+}
+
+// ---------------- 关注 ----------------
+model Follow {
+  id          String @id @default(cuid())
+  followerId  String
+  followingId String
+
+  follower  User @relation("follower", fields: [followerId], references: [id], onDelete: Cascade)
+  following User @relation("following", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@index([followingId])
+}
+
+// ---------------- 硬件设备 ----------------
+model Device {
+  id              String    @id @default(cuid())
+  sn              String    @unique
+  userId          String?
+  firmwareVersion String?
+  battery         Int?
+  onlineStatus    String    @default("OFFLINE") // 取值见 shared: DeviceOnlineStatus
+  lastOnlineAt    DateTime?
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+}
+
+// ---------------- 通知 ----------------
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String // 取值见 shared: NotificationType
+  title     String
+  content   String?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ---------------- 意见反馈 ----------------
+model Feedback {
+  id           String   @id @default(cuid())
+  userId       String
+  type         String // 取值见 shared: FeedbackType
+  content      String
+  screenshot   String?
+  contact      String?
+  handleStatus String   @default("PENDING") // 取值见 shared: FeedbackHandleStatus
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}

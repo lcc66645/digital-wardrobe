@@ -45,11 +45,11 @@ yarn-error.log*
 .DS_Store
 Thumbs.db
 
-# Prisma (keep schema, ignore local sqlite db)
+# Prisma (keep schema & migrations, ignore local sqlite db)
 *.sqlite
 *.sqlite-journal
-prisma/dev.db
-prisma/migrations/dev.db*
+*.db
+*.db-journal
 
 # Uploads / temp
 tmp/
