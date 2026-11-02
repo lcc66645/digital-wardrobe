@@ -5,6 +5,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { HealthController } from './health/health.controller';
 import { UsersModule } from './users/users.module';
 import { ClothingModule } from './clothing/clothing.module';
+import { OutfitModule } from './outfit/outfit.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { ClothingModule } from './clothing/clothing.module';
     AuthModule,
     UsersModule,
     ClothingModule,
+    OutfitModule,
   ],
   controllers: [HealthController],
   providers: [],
