@@ -9,6 +9,7 @@ import { OutfitModule } from './outfit/outfit.module';
 import { CommentModule } from './comment/comment.module';
 import { InteractionModule } from './interaction/interaction.module';
 import { DeviceModule } from './device/device.module';
+import { NotificationModule } from './notification/notification.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { DeviceModule } from './device/device.module';
     CommentModule,
     InteractionModule,
     DeviceModule,
+    NotificationModule,
   ],
   controllers: [HealthController],
   providers: [],
