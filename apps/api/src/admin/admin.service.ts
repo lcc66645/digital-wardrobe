@@ -1,0 +1,180 @@
+import { Injectable } from '@nestjs/common';
+import {
+  AuditStatus,
+  ClothingCategory,
+  ClothingStatus,
+  DeviceOnlineStatus,
+  FeedbackHandleStatus,
+  UserStatus,
+} from '@dw/shared';
+import type {
+  DashboardOverview,
+  DashboardTrendPoint,
+  DashboardVo,
+  DistributionItem,
+} from '@dw/shared';
+import { PrismaService } from '../prisma/prisma.service';
+
+/** 本地日期键 yyyy-mm-dd（按运行环境本地时区，不依赖数据库日期函数，跨库一致） */
+function dayKey(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+@Injectable()
+export class AdminService {
+  constructor(private readonly prisma: PrismaService) {}
+
+  /** 数据看板聚合：总览计数 + 近 7 天趋势 + 三类枚举分布 */
+  async getDashboard(): Promise<DashboardVo> {
+    const [overview, clothingByCategory, clothingByStatus, outfitByAudit, trend] =
+      await Promise.all([
+        this.buildOverview(),
+        this.buildCategoryDistribution(),
+        this.buildStatusDistribution(),
+        this.buildAuditDistribution(),
+        this.buildTrend(),
+      ]);
+
+    return {
+      overview,
+      trend,
+      clothingByCategory,
+      clothingByStatus,
+      outfitByAudit,
+      generatedAt: new Date(),
+    };
+  }
+
+  /** 总览：9 项核心计数，全部并行执行 */
+  private async buildOverview(): Promise<DashboardOverview> {
+    const [
+      userTotal,
+      bannedUserCount,
+      clothingTotal,
+      outfitTotal,
+      publishedOutfitCount,
+      pendingAuditCount,
+      deviceTotal,
+      onlineDeviceCount,
+      pendingFeedbackCount,
+    ] = await Promise.all([
+      this.prisma.user.count(),
+      this.prisma.user.count({ where: { status: UserStatus.BANNED } }),
+      this.prisma.clothing.count(),
+      this.prisma.outfit.count(),
+      this.prisma.outfit.count({ where: { isPublished: true } }),
+      this.prisma.outfit.count({ where: { auditStatus: AuditStatus.PENDING } }),
+      this.prisma.device.count(),
+      this.prisma.device.count({
+        where: { onlineStatus: DeviceOnlineStatus.ONLINE },
+      }),
+      this.prisma.feedback.count({
+        where: { handleStatus: FeedbackHandleStatus.PENDING },
+      }),
+    ]);
+
+    return {
+      userTotal,
+      bannedUserCount,
+      clothingTotal,
+      outfitTotal,
+      publishedOutfitCount,
+      pendingAuditCount,
+      deviceTotal,
+      onlineDeviceCount,
+      pendingFeedbackCount,
+    };
+  }
+
+  /** 衣物按品类分布，补全 8 个枚举的零值 */
+  private async buildCategoryDistribution(): Promise<DistributionItem[]> {
+    const grouped = await this.prisma.clothing.groupBy({
+      by: ['category'],
+      _count: { _all: true },
+    });
+    return this.fillDistribution(
+      Object.values(ClothingCategory),
+      grouped.map((g) => ({ key: g.category, count: g._count._all })),
+    );
+  }
+
+  /** 衣物按生命周期状态分布，补全 5 个枚举的零值 */
+  private async buildStatusDistribution(): Promise<DistributionItem[]> {
+    const grouped = await this.prisma.clothing.groupBy({
+      by: ['status'],
+      _count: { _all: true },
+    });
+    return this.fillDistribution(
+      Object.values(ClothingStatus),
+      grouped.map((g) => ({ key: g.status, count: g._count._all })),
+    );
+  }
+
+  /** 穿搭按审核状态分布，补全 3 个枚举的零值 */
+  private async buildAuditDistribution(): Promise<DistributionItem[]> {
+    const grouped = await this.prisma.outfit.groupBy({
+      by: ['auditStatus'],
+      _count: { _all: true },
+    });
+    return this.fillDistribution(
+      Object.values(AuditStatus),
+      grouped.map((g) => ({ key: g.auditStatus, count: g._count._all })),
+    );
+  }
+
+  /**
+   * 近 7 天趋势：在应用层按本地日期分桶，避免依赖 SQLite/PG 的日期截断差异。
+   * 先建含零值的 7 个桶，再用查询结果填充，保证无数据日也返回。
+   */
+  private async buildTrend(): Promise<DashboardTrendPoint[]> {
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
+
+    const buckets: DashboardTrendPoint[] = [];
+    const indexByKey = new Map<string, DashboardTrendPoint>();
+    for (let i = 0; i < 7; i += 1) {
+      const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+      const point: DashboardTrendPoint = {
+        date: dayKey(d),
+        newUsers: 0,
+        newOutfits: 0,
+      };
+      buckets.push(point);
+      indexByKey.set(point.date, point);
+    }
+
+    const [users, outfits] = await Promise.all([
+      this.prisma.user.findMany({
+        where: { createdAt: { gte: start } },
+        select: { createdAt: true },
+      }),
+      this.prisma.outfit.findMany({
+        where: { createdAt: { gte: start } },
+        select: { createdAt: true },
+      }),
+    ]);
+
+    users.forEach((u) => {
+      const point = indexByKey.get(dayKey(u.createdAt));
+      if (point) point.newUsers += 1;
+    });
+    outfits.forEach((o) => {
+      const point = indexByKey.get(dayKey(o.createdAt));
+      if (point) point.newOutfits += 1;
+    });
+
+    return buckets;
+  }
+
+  /** 按枚举键顺序补全零值，返回稳定顺序的分布数组 */
+  private fillDistribution(
+    keys: string[],
+    actual: DistributionItem[],
+  ): DistributionItem[] {
+    const countByKey = new Map(actual.map((a) => [a.key, a.count]));
+    return keys.map((key) => ({ key, count: countByKey.get(key) ?? 0 }));
+  }
+}

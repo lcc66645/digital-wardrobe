@@ -129,3 +129,60 @@ export interface Feedback {
   handleStatus: FeedbackHandleStatus;
   createdAt: Date;
 }
+
+// ---------------- Web 管理后台聚合视图 ----------------
+
+/** 看板总览计数 */
+export interface DashboardOverview {
+  /** 用户总数 */
+  userTotal: number;
+  /** 封禁用户数 */
+  bannedUserCount: number;
+  /** 衣物总数 */
+  clothingTotal: number;
+  /** 穿搭总数 */
+  outfitTotal: number;
+  /** 已发布穿搭数 */
+  publishedOutfitCount: number;
+  /** 待审核穿搭数 */
+  pendingAuditCount: number;
+  /** 设备总数 */
+  deviceTotal: number;
+  /** 在线设备数 */
+  onlineDeviceCount: number;
+  /** 待处理反馈数 */
+  pendingFeedbackCount: number;
+}
+
+/** 枚举键值分布项 */
+export interface DistributionItem {
+  /** 枚举键（取值见对应枚举） */
+  key: string;
+  /** 数量 */
+  count: number;
+}
+
+/** 近 7 天趋势单日数据 */
+export interface DashboardTrendPoint {
+  /** 日期，格式 yyyy-mm-dd */
+  date: string;
+  /** 当日新增用户数 */
+  newUsers: number;
+  /** 当日新增穿搭数 */
+  newOutfits: number;
+}
+
+/** 数据看板聚合视图（GET admin/dashboard） */
+export interface DashboardVo {
+  overview: DashboardOverview;
+  /** 近 7 天新增趋势（按天，含零值天） */
+  trend: DashboardTrendPoint[];
+  /** 衣物按品类分布（8 类，补全零值） */
+  clothingByCategory: DistributionItem[];
+  /** 衣物按生命周期状态分布（5 种，补全零值） */
+  clothingByStatus: DistributionItem[];
+  /** 穿搭按审核状态分布（3 种，补全零值） */
+  outfitByAudit: DistributionItem[];
+  /** 聚合生成时间 */
+  generatedAt: Date;
+}

@@ -11,6 +11,7 @@ import { InteractionModule } from './interaction/interaction.module';
 import { DeviceModule } from './device/device.module';
 import { NotificationModule } from './notification/notification.module';
 import { FeedbackModule } from './feedback/feedback.module';
+import { AdminModule } from './admin/admin.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { FeedbackModule } from './feedback/feedback.module';
     DeviceModule,
     NotificationModule,
     FeedbackModule,
+    AdminModule,
   ],
   controllers: [HealthController],
   providers: [],
