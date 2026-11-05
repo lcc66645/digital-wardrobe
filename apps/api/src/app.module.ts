@@ -8,6 +8,7 @@ import { ClothingModule } from './clothing/clothing.module';
 import { OutfitModule } from './outfit/outfit.module';
 import { CommentModule } from './comment/comment.module';
 import { InteractionModule } from './interaction/interaction.module';
+import { DeviceModule } from './device/device.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { InteractionModule } from './interaction/interaction.module';
     OutfitModule,
     CommentModule,
     InteractionModule,
+    DeviceModule,
   ],
   controllers: [HealthController],
   providers: [],
