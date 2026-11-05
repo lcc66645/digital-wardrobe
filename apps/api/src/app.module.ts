@@ -10,6 +10,7 @@ import { CommentModule } from './comment/comment.module';
 import { InteractionModule } from './interaction/interaction.module';
 import { DeviceModule } from './device/device.module';
 import { NotificationModule } from './notification/notification.module';
+import { FeedbackModule } from './feedback/feedback.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { NotificationModule } from './notification/notification.module';
     InteractionModule,
     DeviceModule,
     NotificationModule,
+    FeedbackModule,
   ],
   controllers: [HealthController],
   providers: [],
