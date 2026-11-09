@@ -88,6 +88,25 @@ export interface Outfit {
   updatedAt: Date;
 }
 
+/** 管理端穿搭视图：在穿搭字段基础上附带作者摘要（昵称/手机号），tags 已解析为数组 */
+export interface AdminOutfitVo {
+  id: string;
+  userId: string;
+  ownerName: string;
+  ownerPhone: string | null;
+  date: Date;
+  mood: Mood | null;
+  imageUrl: string | null;
+  content: string | null;
+  tags: string[];
+  isPublished: boolean;
+  auditStatus: AuditStatus;
+  likeCount: number;
+  commentCount: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface OutfitItem {
   id: string;
   outfitId: string;
@@ -98,6 +117,19 @@ export interface Comment {
   id: string;
   outfitId: string;
   userId: string;
+  content: string;
+  parentId: string | null;
+  likeCount: number;
+  createdAt: Date;
+}
+
+/** 管理端评论视图：在评论字段基础上附带作者摘要（昵称/手机号） */
+export interface AdminCommentVo {
+  id: string;
+  outfitId: string;
+  userId: string;
+  ownerName: string;
+  ownerPhone: string | null;
   content: string;
   parentId: string | null;
   likeCount: number;

@@ -10,6 +10,8 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type {
   AdminClothingVo,
+  AdminCommentVo,
+  AdminOutfitVo,
   DashboardVo,
   PaginatedResult,
 } from '@dw/shared';
@@ -18,8 +20,10 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import type { RequestUser } from '../auth/jwt.strategy';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AdminService } from './admin.service';
+import { AuditOutfitDto } from './dto/audit-outfit.dto';
 import { QueryAdminClothingDto } from './dto/query-admin-clothing.dto';
 import { UpdateClothingStatusDto } from './dto/update-clothing-status.dto';
+import { QueryAdminOutfitDto } from './dto/query-admin-outfit.dto';
 import { QueryAdminUserDto } from './dto/query-admin-user.dto';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto';
 
@@ -71,5 +75,28 @@ export class AdminController {
     @Body() dto: UpdateClothingStatusDto,
   ): Promise<AdminClothingVo> {
     return this.adminService.setClothingStatus(id, dto);
+  }
+
+  @Get('outfits')
+  @ApiOperation({ summary: '管理后台-穿搭分页列表（审核状态/作者/关键词过滤）' })
+  listOutfits(
+    @Query() query: QueryAdminOutfitDto,
+  ): Promise<PaginatedResult<AdminOutfitVo>> {
+    return this.adminService.listOutfits(query);
+  }
+
+  @Patch('outfits/:id/audit')
+  @ApiOperation({ summary: '管理后台-穿搭审核（通过/驳回）' })
+  auditOutfit(
+    @Param('id') id: string,
+    @Body() dto: AuditOutfitDto,
+  ): Promise<AdminOutfitVo> {
+    return this.adminService.auditOutfit(id, dto);
+  }
+
+  @Get('outfits/:id/comments')
+  @ApiOperation({ summary: '管理后台-查看某条穿搭的评论列表' })
+  listOutfitComments(@Param('id') id: string): Promise<AdminCommentVo[]> {
+    return this.adminService.listOutfitComments(id);
   }
 }

@@ -1,5 +1,8 @@
 import type {
   AdminClothingVo,
+  AdminCommentVo,
+  AdminOutfitVo,
+  AuditStatus,
   ClothingCategory,
   ClothingStatus,
   DashboardVo,
@@ -14,6 +17,12 @@ export type AdminUser = Omit<User, 'passwordHash'>;
 
 /** 管理端衣物（含所属用户摘要，seasons/tags 已解析） */
 export type AdminClothing = AdminClothingVo;
+
+/** 管理端穿搭（含作者摘要，tags 已解析） */
+export type AdminOutfit = AdminOutfitVo;
+
+/** 管理端评论（含作者摘要） */
+export type AdminComment = AdminCommentVo;
 
 /** 衣物列表查询参数 */
 export interface AdminClothingQuery {
@@ -30,6 +39,15 @@ export interface AdminUserQuery {
   page: number;
   pageSize: number;
   status?: UserStatus;
+  keyword?: string;
+}
+
+/** 穿搭列表查询参数 */
+export interface AdminOutfitQuery {
+  page: number;
+  pageSize: number;
+  auditStatus?: AuditStatus;
+  userId?: string;
   keyword?: string;
 }
 
@@ -70,4 +88,26 @@ export function fetchAdminClothing(query: AdminClothingQuery) {
 /** 调整衣物生命周期状态 */
 export function updateClothingStatus(id: string, status: ClothingStatus) {
   return http.patch<AdminClothing>(`/admin/clothing/${id}/status`, { status });
+}
+
+/** 分页获取穿搭列表（可按审核状态/作者/关键词过滤） */
+export function fetchAdminOutfits(query: AdminOutfitQuery) {
+  const params: Record<string, unknown> = {
+    page: query.page,
+    pageSize: query.pageSize,
+  };
+  if (query.auditStatus) params.auditStatus = query.auditStatus;
+  if (query.userId) params.userId = query.userId;
+  if (query.keyword) params.keyword = query.keyword;
+  return http.get<PaginatedResult<AdminOutfit>>('/admin/outfits', params);
+}
+
+/** 穿搭审核（通过/驳回） */
+export function auditOutfit(id: string, auditStatus: AuditStatus) {
+  return http.patch<AdminOutfit>(`/admin/outfits/${id}/audit`, { auditStatus });
+}
+
+/** 获取某条穿搭的评论列表 */
+export function fetchOutfitComments(id: string) {
+  return http.get<AdminComment[]>(`/admin/outfits/${id}/comments`);
 }

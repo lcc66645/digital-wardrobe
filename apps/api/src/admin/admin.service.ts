@@ -10,17 +10,22 @@ import {
 } from '@dw/shared';
 import type {
   AdminClothingVo,
+  AdminCommentVo,
+  AdminOutfitVo,
   DashboardOverview,
   DashboardTrendPoint,
   DashboardVo,
   DistributionItem,
+  Mood,
   PaginatedResult,
   Season,
 } from '@dw/shared';
 import { parseArray } from '../common/utils/json-field.util';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditOutfitDto } from './dto/audit-outfit.dto';
 import { QueryAdminClothingDto } from './dto/query-admin-clothing.dto';
 import { UpdateClothingStatusDto } from './dto/update-clothing-status.dto';
+import { QueryAdminOutfitDto } from './dto/query-admin-outfit.dto';
 import { QueryAdminUserDto } from './dto/query-admin-user.dto';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto';
 
@@ -29,6 +34,16 @@ type AdminSafeUser = Omit<User, 'passwordHash'>;
 
 /** 附带所属用户摘要的衣物（Prisma include 结果类型） */
 type ClothingWithOwner = Prisma.ClothingGetPayload<{
+  include: { user: { select: { nickname: true; phone: true } } };
+}>;
+
+/** 附带作者摘要的穿搭（Prisma include 结果类型） */
+type OutfitWithOwner = Prisma.OutfitGetPayload<{
+  include: { user: { select: { nickname: true; phone: true } } };
+}>;
+
+/** 附带作者摘要的评论（Prisma include 结果类型） */
+type CommentWithOwner = Prisma.CommentGetPayload<{
   include: { user: { select: { nickname: true; phone: true } } };
 }>;
 
@@ -175,6 +190,74 @@ export class AdminService {
     return this.toAdminClothingVo(updated);
   }
 
+  /** 管理端穿搭分页：跨用户，按审核状态/作者/关键词过滤，附带作者摘要 */
+  async listOutfits(
+    q: QueryAdminOutfitDto,
+  ): Promise<PaginatedResult<AdminOutfitVo>> {
+    const where: Prisma.OutfitWhereInput = {};
+    if (q.auditStatus) where.auditStatus = q.auditStatus;
+    if (q.userId) where.userId = q.userId;
+    if (q.keyword) {
+      const kw = q.keyword.trim();
+      where.content = { contains: kw };
+    }
+
+    const [total, rows] = await Promise.all([
+      this.prisma.outfit.count({ where }),
+      this.prisma.outfit.findMany({
+        where,
+        skip: q.skip,
+        take: q.pageSize,
+        orderBy: { createdAt: 'desc' },
+        include: { user: { select: { nickname: true, phone: true } } },
+      }),
+    ]);
+
+    return {
+      list: rows.map((r) => this.toAdminOutfitVo(r)),
+      total,
+      page: q.page,
+      pageSize: q.pageSize,
+      totalPages: Math.ceil(total / q.pageSize),
+    };
+  }
+
+  /** 穿搭审核：通过/驳回，目标不存在返回 404，写入幂等；只改审核状态，不删除内容、不强制改发布标记 */
+  async auditOutfit(id: string, dto: AuditOutfitDto): Promise<AdminOutfitVo> {
+    const existing = await this.prisma.outfit.findUnique({
+      where: { id },
+      include: { user: { select: { nickname: true, phone: true } } },
+    });
+    if (!existing) {
+      throw new NotFoundException('穿搭不存在');
+    }
+
+    const updated = await this.prisma.outfit.update({
+      where: { id },
+      data: { auditStatus: dto.auditStatus },
+      include: { user: { select: { nickname: true, phone: true } } },
+    });
+    return this.toAdminOutfitVo(updated);
+  }
+
+  /** 查看某条穿搭的全部评论（含作者摘要），按创建时间正序；穿搭不存在返回 404 */
+  async listOutfitComments(outfitId: string): Promise<AdminCommentVo[]> {
+    const outfit = await this.prisma.outfit.findUnique({
+      where: { id: outfitId },
+      select: { id: true },
+    });
+    if (!outfit) {
+      throw new NotFoundException('穿搭不存在');
+    }
+
+    const rows = await this.prisma.comment.findMany({
+      where: { outfitId },
+      orderBy: { createdAt: 'asc' },
+      include: { user: { select: { nickname: true, phone: true } } },
+    });
+    return rows.map((r) => this.toAdminCommentVo(r));
+  }
+
   /** 衣物实体转管理端视图：解析 seasons/tags，枚举字段断言，附所属用户摘要 */
   private toAdminClothingVo(c: ClothingWithOwner): AdminClothingVo {
     return {
@@ -194,6 +277,42 @@ export class AdminService {
       tags: parseArray<string>(c.tags),
       createdAt: c.createdAt,
       updatedAt: c.updatedAt,
+    };
+  }
+
+  /** 穿搭实体转管理端视图：解析 tags，枚举字段断言，附作者摘要 */
+  private toAdminOutfitVo(o: OutfitWithOwner): AdminOutfitVo {
+    return {
+      id: o.id,
+      userId: o.userId,
+      ownerName: o.user.nickname,
+      ownerPhone: o.user.phone,
+      date: o.date,
+      mood: (o.mood as Mood | null) ?? null,
+      imageUrl: o.imageUrl,
+      content: o.content,
+      tags: parseArray<string>(o.tags),
+      isPublished: o.isPublished,
+      auditStatus: o.auditStatus as AdminOutfitVo['auditStatus'],
+      likeCount: o.likeCount,
+      commentCount: o.commentCount,
+      createdAt: o.createdAt,
+      updatedAt: o.updatedAt,
+    };
+  }
+
+  /** 评论实体转管理端视图，附作者摘要 */
+  private toAdminCommentVo(c: CommentWithOwner): AdminCommentVo {
+    return {
+      id: c.id,
+      outfitId: c.outfitId,
+      userId: c.userId,
+      ownerName: c.user.nickname,
+      ownerPhone: c.user.phone,
+      content: c.content,
+      parentId: c.parentId,
+      likeCount: c.likeCount,
+      createdAt: c.createdAt,
     };
   }
 
