@@ -9,18 +9,28 @@ import {
   UserStatus,
 } from '@dw/shared';
 import type {
+  AdminClothingVo,
   DashboardOverview,
   DashboardTrendPoint,
   DashboardVo,
   DistributionItem,
   PaginatedResult,
+  Season,
 } from '@dw/shared';
+import { parseArray } from '../common/utils/json-field.util';
 import { PrismaService } from '../prisma/prisma.service';
+import { QueryAdminClothingDto } from './dto/query-admin-clothing.dto';
+import { UpdateClothingStatusDto } from './dto/update-clothing-status.dto';
 import { QueryAdminUserDto } from './dto/query-admin-user.dto';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto';
 
 /** 管理端用户结构：不暴露密码哈希 */
 type AdminSafeUser = Omit<User, 'passwordHash'>;
+
+/** 附带所属用户摘要的衣物（Prisma include 结果类型） */
+type ClothingWithOwner = Prisma.ClothingGetPayload<{
+  include: { user: { select: { nickname: true; phone: true } } };
+}>;
 
 /** 本地日期键 yyyy-mm-dd（按运行环境本地时区，不依赖数据库日期函数，跨库一致） */
 function dayKey(d: Date): string {
@@ -109,6 +119,82 @@ export class AdminService {
       data: { status: dto.status },
     });
     return this.toSafeUser(updated);
+  }
+
+  /** 管理端衣物分页：跨用户，按品类/状态/所属用户/关键词过滤，附带所属用户摘要 */
+  async listClothing(
+    q: QueryAdminClothingDto,
+  ): Promise<PaginatedResult<AdminClothingVo>> {
+    const where: Prisma.ClothingWhereInput = {};
+    if (q.category) where.category = q.category;
+    if (q.status) where.status = q.status;
+    if (q.userId) where.userId = q.userId;
+    if (q.keyword) {
+      const kw = q.keyword.trim();
+      where.OR = [{ name: { contains: kw } }, { color: { contains: kw } }];
+    }
+
+    const [total, rows] = await Promise.all([
+      this.prisma.clothing.count({ where }),
+      this.prisma.clothing.findMany({
+        where,
+        skip: q.skip,
+        take: q.pageSize,
+        orderBy: { createdAt: 'desc' },
+        include: { user: { select: { nickname: true, phone: true } } },
+      }),
+    ]);
+
+    return {
+      list: rows.map((r) => this.toAdminClothingVo(r)),
+      total,
+      page: q.page,
+      pageSize: q.pageSize,
+      totalPages: Math.ceil(total / q.pageSize),
+    };
+  }
+
+  /** 调整衣物生命周期状态：目标不存在返回 404，写入幂等 */
+  async setClothingStatus(
+    id: string,
+    dto: UpdateClothingStatusDto,
+  ): Promise<AdminClothingVo> {
+    const existing = await this.prisma.clothing.findUnique({
+      where: { id },
+      include: { user: { select: { nickname: true, phone: true } } },
+    });
+    if (!existing) {
+      throw new NotFoundException('衣物不存在');
+    }
+
+    const updated = await this.prisma.clothing.update({
+      where: { id },
+      data: { status: dto.status },
+      include: { user: { select: { nickname: true, phone: true } } },
+    });
+    return this.toAdminClothingVo(updated);
+  }
+
+  /** 衣物实体转管理端视图：解析 seasons/tags，枚举字段断言，附所属用户摘要 */
+  private toAdminClothingVo(c: ClothingWithOwner): AdminClothingVo {
+    return {
+      id: c.id,
+      userId: c.userId,
+      ownerName: c.user.nickname,
+      ownerPhone: c.user.phone,
+      name: c.name,
+      category: c.category as AdminClothingVo['category'],
+      color: c.color,
+      seasons: parseArray<Season>(c.seasons),
+      occasion: c.occasion as AdminClothingVo['occasion'],
+      imageUrl: c.imageUrl,
+      purchasePrice: c.purchasePrice,
+      wearCount: c.wearCount,
+      status: c.status as AdminClothingVo['status'],
+      tags: parseArray<string>(c.tags),
+      createdAt: c.createdAt,
+      updatedAt: c.updatedAt,
+    };
   }
 
   /** 剥离密码哈希字段 */

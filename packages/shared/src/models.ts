@@ -52,6 +52,26 @@ export interface Clothing {
   updatedAt: Date;
 }
 
+/** 管理端衣物视图：在衣物字段基础上附带所属用户摘要（昵称/手机号），seasons/tags 已解析为数组 */
+export interface AdminClothingVo {
+  id: string;
+  userId: string;
+  ownerName: string;
+  ownerPhone: string | null;
+  name: string;
+  category: ClothingCategory;
+  color: string | null;
+  seasons: Season[];
+  occasion: Occasion | null;
+  imageUrl: string | null;
+  purchasePrice: number | null;
+  wearCount: number;
+  status: ClothingStatus;
+  tags: string[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface Outfit {
   id: string;
   userId: string;
