@@ -21,8 +21,16 @@ export default defineConfig({
       },
     },
   },
+  // workspace 共享包经 junction 链接、真实路径在 node_modules 外，
+  // 显式纳入 CJS 转换，保证其 CommonJS 命名导出（枚举）可被 Rollup 识别
+  optimizeDeps: {
+    include: ['@dw/shared'],
+  },
   build: {
     outDir: 'dist',
     sourcemap: false,
+    commonjsOptions: {
+      include: [/packages[\\/]shared/, /node_modules/],
+    },
   },
 });

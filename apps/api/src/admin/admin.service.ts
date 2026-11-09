@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import type { Prisma, User } from '@prisma/client';
 import {
   AuditStatus,
   ClothingCategory,
@@ -12,8 +13,14 @@ import type {
   DashboardTrendPoint,
   DashboardVo,
   DistributionItem,
+  PaginatedResult,
 } from '@dw/shared';
 import { PrismaService } from '../prisma/prisma.service';
+import { QueryAdminUserDto } from './dto/query-admin-user.dto';
+import { UpdateUserStatusDto } from './dto/update-user-status.dto';
+
+/** 管理端用户结构：不暴露密码哈希 */
+type AdminSafeUser = Omit<User, 'passwordHash'>;
 
 /** 本地日期键 yyyy-mm-dd（按运行环境本地时区，不依赖数据库日期函数，跨库一致） */
 function dayKey(d: Date): string {
@@ -46,6 +53,68 @@ export class AdminService {
       outfitByAudit,
       generatedAt: new Date(),
     };
+  }
+
+  /** 管理端用户分页列表：支持按状态、昵称/手机号关键词过滤，返回脱敏用户 */
+  async listUsers(
+    q: QueryAdminUserDto,
+  ): Promise<PaginatedResult<AdminSafeUser>> {
+    const where: Prisma.UserWhereInput = {};
+    if (q.status) where.status = q.status;
+    if (q.keyword) {
+      const kw = q.keyword.trim();
+      where.OR = [
+        { nickname: { contains: kw } },
+        { phone: { contains: kw } },
+      ];
+    }
+
+    const [total, rows] = await Promise.all([
+      this.prisma.user.count({ where }),
+      this.prisma.user.findMany({
+        where,
+        skip: q.skip,
+        take: q.pageSize,
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]);
+
+    return {
+      list: rows.map((r) => this.toSafeUser(r)),
+      total,
+      page: q.page,
+      pageSize: q.pageSize,
+      totalPages: Math.ceil(total / q.pageSize),
+    };
+  }
+
+  /** 封禁/解封用户：切换状态；禁止管理员封禁当前登录账号，目标不存在返回 404 */
+  async setUserStatus(
+    targetId: string,
+    dto: UpdateUserStatusDto,
+    currentUserId: string,
+  ): Promise<AdminSafeUser> {
+    const target = await this.prisma.user.findUnique({
+      where: { id: targetId },
+    });
+    if (!target) {
+      throw new NotFoundException('用户不存在');
+    }
+    if (targetId === currentUserId && dto.status === UserStatus.BANNED) {
+      throw new BadRequestException('不能封禁当前登录的管理员账号');
+    }
+
+    const updated = await this.prisma.user.update({
+      where: { id: targetId },
+      data: { status: dto.status },
+    });
+    return this.toSafeUser(updated);
+  }
+
+  /** 剥离密码哈希字段 */
+  private toSafeUser(user: User): AdminSafeUser {
+    const { passwordHash: _passwordHash, ...safe } = user;
+    return safe;
   }
 
   /** 总览：9 项核心计数，全部并行执行 */
