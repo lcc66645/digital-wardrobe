@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -11,6 +12,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type {
   AdminClothingVo,
   AdminCommentVo,
+  AdminDeviceVo,
   AdminOutfitVo,
   DashboardVo,
   PaginatedResult,
@@ -22,6 +24,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AdminService } from './admin.service';
 import { AuditOutfitDto } from './dto/audit-outfit.dto';
 import { QueryAdminClothingDto } from './dto/query-admin-clothing.dto';
+import { QueryAdminDeviceDto } from './dto/query-admin-device.dto';
 import { UpdateClothingStatusDto } from './dto/update-clothing-status.dto';
 import { QueryAdminOutfitDto } from './dto/query-admin-outfit.dto';
 import { QueryAdminUserDto } from './dto/query-admin-user.dto';
@@ -98,5 +101,19 @@ export class AdminController {
   @ApiOperation({ summary: '管理后台-查看某条穿搭的评论列表' })
   listOutfitComments(@Param('id') id: string): Promise<AdminCommentVo[]> {
     return this.adminService.listOutfitComments(id);
+  }
+
+  @Get('devices')
+  @ApiOperation({ summary: '管理后台-设备分页列表（在线状态/用户/关键词过滤）' })
+  listDevices(
+    @Query() query: QueryAdminDeviceDto,
+  ): Promise<PaginatedResult<AdminDeviceVo>> {
+    return this.adminService.listDevices(query);
+  }
+
+  @Delete('devices/:id/binding')
+  @ApiOperation({ summary: '管理后台-强制解绑设备（解除与用户的绑定关系）' })
+  unbindDevice(@Param('id') id: string): Promise<AdminDeviceVo> {
+    return this.adminService.unbindDevice(id);
   }
 }

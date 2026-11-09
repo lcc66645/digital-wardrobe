@@ -5,6 +5,7 @@ import Dashboard from '@/pages/Dashboard';
 import Users from '@/pages/Users';
 import Clothing from '@/pages/Clothing';
 import Community from '@/pages/Community';
+import Devices from '@/pages/Devices';
 import Placeholder from '@/pages/Placeholder';
 import { RequireAuth } from '@/routes/RequireAuth';
 
@@ -25,7 +26,7 @@ export default function App() {
         <Route path="/users" element={<Users />} />
         <Route path="/clothing" element={<Clothing />} />
         <Route path="/community" element={<Community />} />
-        <Route path="/devices" element={<Placeholder title="硬件设备" description="设备绑定、在线状态与固件管理。" />} />
+        <Route path="/devices" element={<Devices />} />
         <Route path="/algorithm" element={<Placeholder title="算法管理" description="推荐策略、模型参数与效果监控。" />} />
       </Route>
 

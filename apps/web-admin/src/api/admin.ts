@@ -1,11 +1,13 @@
 import type {
   AdminClothingVo,
   AdminCommentVo,
+  AdminDeviceVo,
   AdminOutfitVo,
   AuditStatus,
   ClothingCategory,
   ClothingStatus,
   DashboardVo,
+  DeviceOnlineStatus,
   PaginatedResult,
   User,
   UserStatus,
@@ -23,6 +25,9 @@ export type AdminOutfit = AdminOutfitVo;
 
 /** 管理端评论（含作者摘要） */
 export type AdminComment = AdminCommentVo;
+
+/** 管理端设备（含绑定用户摘要） */
+export type AdminDevice = AdminDeviceVo;
 
 /** 衣物列表查询参数 */
 export interface AdminClothingQuery {
@@ -47,6 +52,15 @@ export interface AdminOutfitQuery {
   page: number;
   pageSize: number;
   auditStatus?: AuditStatus;
+  userId?: string;
+  keyword?: string;
+}
+
+/** 设备列表查询参数 */
+export interface AdminDeviceQuery {
+  page: number;
+  pageSize: number;
+  onlineStatus?: DeviceOnlineStatus;
   userId?: string;
   keyword?: string;
 }
@@ -110,4 +124,21 @@ export function auditOutfit(id: string, auditStatus: AuditStatus) {
 /** 获取某条穿搭的评论列表 */
 export function fetchOutfitComments(id: string) {
   return http.get<AdminComment[]>(`/admin/outfits/${id}/comments`);
+}
+
+/** 分页获取设备列表（可按在线状态/用户/关键词过滤） */
+export function fetchAdminDevices(query: AdminDeviceQuery) {
+  const params: Record<string, unknown> = {
+    page: query.page,
+    pageSize: query.pageSize,
+  };
+  if (query.onlineStatus) params.onlineStatus = query.onlineStatus;
+  if (query.userId) params.userId = query.userId;
+  if (query.keyword) params.keyword = query.keyword;
+  return http.get<PaginatedResult<AdminDevice>>('/admin/devices', params);
+}
+
+/** 管理员强制解绑设备 */
+export function unbindDevice(id: string) {
+  return http.delete<AdminDevice>(`/admin/devices/${id}/binding`);
 }

@@ -11,6 +11,7 @@ import {
 import type {
   AdminClothingVo,
   AdminCommentVo,
+  AdminDeviceVo,
   AdminOutfitVo,
   DashboardOverview,
   DashboardTrendPoint,
@@ -24,6 +25,7 @@ import { parseArray } from '../common/utils/json-field.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditOutfitDto } from './dto/audit-outfit.dto';
 import { QueryAdminClothingDto } from './dto/query-admin-clothing.dto';
+import { QueryAdminDeviceDto } from './dto/query-admin-device.dto';
 import { UpdateClothingStatusDto } from './dto/update-clothing-status.dto';
 import { QueryAdminOutfitDto } from './dto/query-admin-outfit.dto';
 import { QueryAdminUserDto } from './dto/query-admin-user.dto';
@@ -44,6 +46,11 @@ type OutfitWithOwner = Prisma.OutfitGetPayload<{
 
 /** 附带作者摘要的评论（Prisma include 结果类型） */
 type CommentWithOwner = Prisma.CommentGetPayload<{
+  include: { user: { select: { nickname: true; phone: true } } };
+}>;
+
+/** 附带绑定用户摘要的设备（Prisma include 结果类型） */
+type DeviceWithOwner = Prisma.DeviceGetPayload<{
   include: { user: { select: { nickname: true; phone: true } } };
 }>;
 
@@ -258,6 +265,59 @@ export class AdminService {
     return rows.map((r) => this.toAdminCommentVo(r));
   }
 
+  /** 管理端设备分页：跨用户，按在线状态/绑定用户/关键词（SN/固件）过滤，附带绑定用户摘要 */
+  async listDevices(
+    q: QueryAdminDeviceDto,
+  ): Promise<PaginatedResult<AdminDeviceVo>> {
+    const where: Prisma.DeviceWhereInput = {};
+    if (q.onlineStatus) where.onlineStatus = q.onlineStatus;
+    if (q.userId) where.userId = q.userId;
+    if (q.keyword) {
+      const kw = q.keyword.trim();
+      where.OR = [
+        { sn: { contains: kw } },
+        { firmwareVersion: { contains: kw } },
+      ];
+    }
+
+    const [total, rows] = await Promise.all([
+      this.prisma.device.count({ where }),
+      this.prisma.device.findMany({
+        where,
+        skip: q.skip,
+        take: q.pageSize,
+        orderBy: [{ lastOnlineAt: 'desc' }, { sn: 'asc' }],
+        include: { user: { select: { nickname: true, phone: true } } },
+      }),
+    ]);
+
+    return {
+      list: rows.map((r) => this.toAdminDeviceVo(r)),
+      total,
+      page: q.page,
+      pageSize: q.pageSize,
+      totalPages: Math.ceil(total / q.pageSize),
+    };
+  }
+
+  /** 管理员强制解绑：目标不存在返回 404；解绑后 userId 置空、状态置离线，未绑定设备调用幂等 */
+  async unbindDevice(id: string): Promise<AdminDeviceVo> {
+    const existing = await this.prisma.device.findUnique({
+      where: { id },
+      include: { user: { select: { nickname: true, phone: true } } },
+    });
+    if (!existing) {
+      throw new NotFoundException('设备不存在');
+    }
+
+    const updated = await this.prisma.device.update({
+      where: { id },
+      data: { userId: null, onlineStatus: DeviceOnlineStatus.OFFLINE },
+      include: { user: { select: { nickname: true, phone: true } } },
+    });
+    return this.toAdminDeviceVo(updated);
+  }
+
   /** 衣物实体转管理端视图：解析 seasons/tags，枚举字段断言，附所属用户摘要 */
   private toAdminClothingVo(c: ClothingWithOwner): AdminClothingVo {
     return {
@@ -313,6 +373,21 @@ export class AdminService {
       parentId: c.parentId,
       likeCount: c.likeCount,
       createdAt: c.createdAt,
+    };
+  }
+
+  /** 设备实体转管理端视图，附绑定用户摘要（未绑定时为 null） */
+  private toAdminDeviceVo(d: DeviceWithOwner): AdminDeviceVo {
+    return {
+      id: d.id,
+      sn: d.sn,
+      userId: d.userId,
+      ownerName: d.user?.nickname ?? null,
+      ownerPhone: d.user?.phone ?? null,
+      firmwareVersion: d.firmwareVersion,
+      battery: d.battery,
+      onlineStatus: d.onlineStatus as AdminDeviceVo['onlineStatus'],
+      lastOnlineAt: d.lastOnlineAt,
     };
   }
 

@@ -161,6 +161,19 @@ export interface Device {
   lastOnlineAt: Date | null;
 }
 
+/** 管理端设备视图：设备字段 + 绑定用户摘要（未绑定时 ownerName/ownerPhone 为 null） */
+export interface AdminDeviceVo {
+  id: string;
+  sn: string;
+  userId: string | null;
+  ownerName: string | null;
+  ownerPhone: string | null;
+  firmwareVersion: string | null;
+  battery: number | null;
+  onlineStatus: DeviceOnlineStatus;
+  lastOnlineAt: Date | null;
+}
+
 export interface Notification {
   id: string;
   userId: string;
