@@ -20,6 +20,17 @@ lib/
 web-build/
 # Metro
 .metro-health-check*
+.metro-cache/
+# React Native 原生构建产物（原生壳在具备 JDK/Android SDK 后生成）
+apps/mobile/android/.gradle/
+apps/mobile/android/app/build/
+apps/mobile/android/build/
+apps/mobile/.cxx/
+apps/mobile/ios/Pods/
+apps/mobile/ios/build/
+*.apk
+*.aab
+*.ipa
 
 # NestJS / coverage
 coverage/
