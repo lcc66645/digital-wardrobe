@@ -1,21 +1,17 @@
+import type { User } from '@dw/shared';
 import { post } from './client';
 
 /**
- * 登录用户在移动端只承载当前界面需要的字段；
- * 与后端 User 实体 / @dw/shared UserVo 结构兼容，多余字段不影响读取。
+ * 登录用户对外结构：后端 SafeUser 已剥离 passwordHash；
+ * JSON 传输后时间字段为 ISO 字符串（shared User 中为 Date 实例形态，端侧按字符串接收）。
  */
-export interface LoginUser {
-  id: string;
-  nickname: string;
-  phone: string;
-  avatar?: string | null;
-  gender?: string | null;
-  city?: string | null;
-  height?: number | null;
-  stylePreference?: string | null;
-  status: 'ACTIVE' | 'BANNED';
-  createdAt?: string;
-}
+export type LoginUser = Omit<
+  User,
+  'passwordHash' | 'createdAt' | 'updatedAt'
+> & {
+  createdAt: string;
+  updatedAt: string;
+};
 
 export interface LoginResult {
   accessToken: string;

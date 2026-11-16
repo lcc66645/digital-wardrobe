@@ -13,7 +13,7 @@ const MENU_ITEMS = [
   '设置（账号与安全 / 隐私 / 关于）',
 ];
 
-function maskPhone(phone?: string): string {
+function maskPhone(phone?: string | null): string {
   if (!phone || phone.length !== 11) {
     return phone ? phone : '未绑定手机号';
   }
@@ -42,7 +42,7 @@ export default function ProfileScreen() {
             <Text style={styles.phone}>{maskPhone(user?.phone)}</Text>
             <Text style={styles.meta}>
               {user?.city ? user.city : '城市未设置'} ·{' '}
-              {user?.stylePreference ? user.stylePreference : '穿搭风格未设置'}
+              {user?.style ? user.style : '穿搭风格未设置'}
             </Text>
           </View>
         </View>
