@@ -3,6 +3,7 @@ import type {
   AdminCommentVo,
   AdminDeviceVo,
   AdminOutfitVo,
+  AlgorithmOverviewVo,
   AuditStatus,
   ClothingCategory,
   ClothingStatus,
@@ -28,6 +29,9 @@ export type AdminComment = AdminCommentVo;
 
 /** 管理端设备（含绑定用户摘要） */
 export type AdminDevice = AdminDeviceVo;
+
+/** 算法管理聚合（推荐数据底座 + 策略口径） */
+export type AlgorithmOverview = AlgorithmOverviewVo;
 
 /** 衣物列表查询参数 */
 export interface AdminClothingQuery {
@@ -141,4 +145,9 @@ export function fetchAdminDevices(query: AdminDeviceQuery) {
 /** 管理员强制解绑设备 */
 export function unbindDevice(id: string) {
   return http.delete<AdminDevice>(`/admin/devices/${id}/binding`);
+}
+
+/** 获取算法推荐数据底座与策略口径聚合 */
+export function fetchAlgorithmOverview() {
+  return http.get<AlgorithmOverview>('/admin/algorithm/overview');
 }

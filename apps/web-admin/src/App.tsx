@@ -6,7 +6,7 @@ import Users from '@/pages/Users';
 import Clothing from '@/pages/Clothing';
 import Community from '@/pages/Community';
 import Devices from '@/pages/Devices';
-import Placeholder from '@/pages/Placeholder';
+import Algorithm from '@/pages/Algorithm';
 import { RequireAuth } from '@/routes/RequireAuth';
 
 export default function App() {
@@ -27,7 +27,7 @@ export default function App() {
         <Route path="/clothing" element={<Clothing />} />
         <Route path="/community" element={<Community />} />
         <Route path="/devices" element={<Devices />} />
-        <Route path="/algorithm" element={<Placeholder title="算法管理" description="推荐策略、模型参数与效果监控。" />} />
+        <Route path="/algorithm" element={<Algorithm />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/dashboard" replace />} />

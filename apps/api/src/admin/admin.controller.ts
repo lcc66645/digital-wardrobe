@@ -14,6 +14,7 @@ import type {
   AdminCommentVo,
   AdminDeviceVo,
   AdminOutfitVo,
+  AlgorithmOverviewVo,
   DashboardVo,
   PaginatedResult,
 } from '@dw/shared';
@@ -115,5 +116,11 @@ export class AdminController {
   @ApiOperation({ summary: '管理后台-强制解绑设备（解除与用户的绑定关系）' })
   unbindDevice(@Param('id') id: string): Promise<AdminDeviceVo> {
     return this.adminService.unbindDevice(id);
+  }
+
+  @Get('algorithm/overview')
+  @ApiOperation({ summary: '管理后台-算法推荐数据底座与策略口径聚合' })
+  getAlgorithmOverview(): Promise<AlgorithmOverviewVo> {
+    return this.adminService.getAlgorithmOverview();
   }
 }

@@ -251,3 +251,66 @@ export interface DashboardVo {
   /** 聚合生成时间 */
   generatedAt: Date;
 }
+
+// ---------------- 算法管理（推荐数据底座 + 策略口径） ----------------
+
+/** 算法推荐数据底座核心计数（全部来自真实库聚合，不含估算的线上效果指标） */
+export interface AlgorithmBaseMetrics {
+  /** 全部衣物数 */
+  clothingTotal: number;
+  /** 可进入推荐候选池的在用衣物数（status=IN_USE） */
+  inUseClothingCount: number;
+  /** 在用衣物累计穿着次数（wearCount 求和） */
+  totalWearCount: number;
+  /** 在用衣物平均穿着次数（保留 1 位小数） */
+  avgWearCount: number;
+  /** 在用但从未穿着（wearCount=0）的闲置衣物数 */
+  idleClothingCount: number;
+  /** 穿搭组合总数 */
+  outfitTotal: number;
+  /** 已发布且审核通过、可进入社区/推荐内容池的穿搭数 */
+  publicOutfitCount: number;
+}
+
+/** 品类完备度项：在用数量 + 是否必备 + 是否缺口 */
+export interface CategoryCoverageItem {
+  /** 衣物品类键（ClothingCategory） */
+  category: string;
+  /** 在用数量 */
+  count: number;
+  /** 是否为搭配必备品类 */
+  required: boolean;
+  /** 必备品类在用数量为 0 时为缺口 */
+  gap: boolean;
+}
+
+/** 推荐策略规则口径项（只读产品规则说明，非运行时可调参数） */
+export interface AlgorithmRuleItem {
+  /** 规则环节，如 候选过滤 / 品类补齐 */
+  stage: string;
+  /** 规则名称 */
+  name: string;
+  /** 规则口径说明 */
+  description: string;
+  /** 落地状态：ACTIVE 已生效 / PLANNED 规划中（依赖外部数据或后续迭代） */
+  status: 'ACTIVE' | 'PLANNED';
+}
+
+/** 算法管理聚合视图（GET admin/algorithm/overview） */
+export interface AlgorithmOverviewVo {
+  metrics: AlgorithmBaseMetrics;
+  /** 在用衣物品类完备度（8 类，补全零值，含必备/缺口标记） */
+  categoryCoverage: CategoryCoverageItem[];
+  /** 在用衣物季节分布（4 季；一件多季会重复计入，按季节打标计数） */
+  seasonDistribution: DistributionItem[];
+  /** 在用衣物场合分布（7 种，补全零值；未设置场合不计入，见 occasionUnsetCount） */
+  occasionDistribution: DistributionItem[];
+  /** 未设置场合的在用衣物数 */
+  occasionUnsetCount: number;
+  /** 全量衣物生命周期分布（5 态，补全零值） */
+  lifecycleDistribution: DistributionItem[];
+  /** 当前推荐策略规则口径（只读） */
+  rules: AlgorithmRuleItem[];
+  /** 聚合生成时间 */
+  generatedAt: Date;
+}

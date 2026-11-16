@@ -6,6 +6,8 @@ import {
   ClothingStatus,
   DeviceOnlineStatus,
   FeedbackHandleStatus,
+  Occasion,
+  Season,
   UserStatus,
 } from '@dw/shared';
 import type {
@@ -13,13 +15,15 @@ import type {
   AdminCommentVo,
   AdminDeviceVo,
   AdminOutfitVo,
+  AlgorithmOverviewVo,
+  AlgorithmRuleItem,
+  CategoryCoverageItem,
   DashboardOverview,
   DashboardTrendPoint,
   DashboardVo,
   DistributionItem,
   Mood,
   PaginatedResult,
-  Season,
 } from '@dw/shared';
 import { parseArray } from '../common/utils/json-field.util';
 import { PrismaService } from '../prisma/prisma.service';
@@ -316,6 +320,151 @@ export class AdminService {
       include: { user: { select: { nickname: true, phone: true } } },
     });
     return this.toAdminDeviceVo(updated);
+  }
+
+  /** 搭配必备品类：缺少这些品类难以独立成组一套日常搭配 */
+  private static readonly REQUIRED_CATEGORIES: ClothingCategory[] = [
+    ClothingCategory.TOP,
+    ClothingCategory.BOTTOM,
+    ClothingCategory.OUTERWEAR,
+    ClothingCategory.SHOES,
+  ];
+
+  /** 推荐策略规则口径（只读产品规则，与 PRD/审查结论一致；非数据库可调参数） */
+  private static readonly ALGORITHM_RULES: AlgorithmRuleItem[] = [
+    {
+      stage: '候选过滤',
+      name: '在用候选池',
+      description:
+        '仅生命周期为「在用 IN_USE」的衣物进入推荐候选；收纳、捐赠、转卖、丢弃状态不参与搭配推荐。',
+      status: 'ACTIVE',
+    },
+    {
+      stage: '品类补齐',
+      name: '成套可行性',
+      description:
+        '一套推荐需覆盖上装、下装（连衣裙可替代上下装）与鞋履，外套按季节/温差补齐；必备品类空缺时减少该方向组合并提示补充单品。',
+      status: 'ACTIVE',
+    },
+    {
+      stage: '季节匹配',
+      name: '时令适配',
+      description:
+        '按衣物适用季节 seasons 与当前季节匹配；反季单品降权而非完全屏蔽，兼顾叠穿与早晚温差。',
+      status: 'ACTIVE',
+    },
+    {
+      stage: '场合匹配',
+      name: '场景适配',
+      description:
+        '按衣物场合 occasion 匹配当日场景：通勤 WORK、休闲 CASUAL、约会 DATE、运动 SPORT、正式 FORMAL、居家 HOME。',
+      status: 'ACTIVE',
+    },
+    {
+      stage: '利用率因子',
+      name: '闲置盘活',
+      description:
+        '同等匹配度下优先提升穿着次数少的单品曝光，避免高频单品反复堆砌，提升衣橱整体利用率。',
+      status: 'ACTIVE',
+    },
+    {
+      stage: '成本因子',
+      name: '单次穿着成本',
+      description:
+        '单次穿着成本 = 购入价 ÷（穿着次数 + 1）；成本越高且穿着越少的单品优先获得搭配曝光，引导盘活高价值闲置。',
+      status: 'ACTIVE',
+    },
+    {
+      stage: '负反馈降权',
+      name: '不感兴趣反馈',
+      description:
+        '用户对推荐选择「不喜欢 / 换一批」后，相似品类、颜色与风格组合进入短期降权，不连续重复推荐。',
+      status: 'ACTIVE',
+    },
+    {
+      stage: '天气与心情',
+      name: '情境因子',
+      description:
+        '结合实时天气温度、降水与用户当日心情 mood 调整厚薄、配色与风格；该能力依赖天气数据接入，当前为规划中。',
+      status: 'PLANNED',
+    },
+  ];
+
+  /** 算法管理聚合：推荐数据底座计数 + 品类完备度 + 季节/场合/生命周期分布 + 策略口径 */
+  async getAlgorithmOverview(): Promise<AlgorithmOverviewVo> {
+    const [inUseRows, clothingTotal, outfitTotal, publicOutfitCount, lifecycleDistribution] =
+      await Promise.all([
+        this.prisma.clothing.findMany({
+          where: { status: ClothingStatus.IN_USE },
+          select: { category: true, seasons: true, occasion: true, wearCount: true },
+        }),
+        this.prisma.clothing.count(),
+        this.prisma.outfit.count(),
+        this.prisma.outfit.count({
+          where: { isPublished: true, auditStatus: AuditStatus.APPROVED },
+        }),
+        this.buildStatusDistribution(),
+      ]);
+
+    const inUseClothingCount = inUseRows.length;
+    const totalWearCount = inUseRows.reduce((sum, r) => sum + r.wearCount, 0);
+    const avgWearCount = inUseClothingCount
+      ? Math.round((totalWearCount / inUseClothingCount) * 10) / 10
+      : 0;
+    const idleClothingCount = inUseRows.filter((r) => r.wearCount === 0).length;
+
+    const categoryCount = new Map<string, number>();
+    const seasonCount = new Map<string, number>();
+    const occasionCount = new Map<string, number>();
+    let occasionUnsetCount = 0;
+
+    inUseRows.forEach((r) => {
+      categoryCount.set(r.category, (categoryCount.get(r.category) ?? 0) + 1);
+      parseArray<Season>(r.seasons).forEach((s) => {
+        seasonCount.set(s, (seasonCount.get(s) ?? 0) + 1);
+      });
+      if (r.occasion) {
+        occasionCount.set(r.occasion, (occasionCount.get(r.occasion) ?? 0) + 1);
+      } else {
+        occasionUnsetCount += 1;
+      }
+    });
+
+    const categoryCoverage: CategoryCoverageItem[] = Object.values(ClothingCategory).map(
+      (c) => {
+        const count = categoryCount.get(c) ?? 0;
+        const required = AdminService.REQUIRED_CATEGORIES.includes(c);
+        return { category: c, count, required, gap: required && count === 0 };
+      },
+    );
+
+    const seasonDistribution = this.fillDistribution(
+      Object.values(Season),
+      Object.values(Season).map((s) => ({ key: s, count: seasonCount.get(s) ?? 0 })),
+    );
+    const occasionDistribution = this.fillDistribution(
+      Object.values(Occasion),
+      Object.values(Occasion).map((o) => ({ key: o, count: occasionCount.get(o) ?? 0 })),
+    );
+
+    return {
+      metrics: {
+        clothingTotal,
+        inUseClothingCount,
+        totalWearCount,
+        avgWearCount,
+        idleClothingCount,
+        outfitTotal,
+        publicOutfitCount,
+      },
+      categoryCoverage,
+      seasonDistribution,
+      occasionDistribution,
+      occasionUnsetCount,
+      lifecycleDistribution,
+      rules: AdminService.ALGORITHM_RULES,
+      generatedAt: new Date(),
+    };
   }
 
   /** 衣物实体转管理端视图：解析 seasons/tags，枚举字段断言，附所属用户摘要 */
