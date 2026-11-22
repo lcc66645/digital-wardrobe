@@ -8,7 +8,8 @@
     "android": "react-native run-android",
     "ios": "react-native run-ios",
     "typecheck": "tsc --noEmit",
-    "build": "tsc --noEmit"
+    "build": "tsc --noEmit",
+    "build:web": "node ../../node_modules/vite/bin/vite.js build --config web-preview/vite.config.ts"
   },
   "dependencies": {
     "@dw/shared": "0.1.0",

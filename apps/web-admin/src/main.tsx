@@ -2,7 +2,7 @@ import { App as AntApp, ConfigProvider } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { BrowserRouter } from 'react-router-dom';
+import { HashRouter } from 'react-router-dom';
 import App from './App';
 import { AuthProvider } from './store/auth';
 import { themeConfig } from './theme/tokens';
@@ -13,9 +13,9 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
     <ConfigProvider locale={zhCN} theme={themeConfig}>
       <AntApp>
         <AuthProvider>
-          <BrowserRouter>
+          <HashRouter>
             <App />
-          </BrowserRouter>
+          </HashRouter>
         </AuthProvider>
       </AntApp>
     </ConfigProvider>

@@ -4,6 +4,8 @@ import { fileURLToPath, URL } from 'node:url';
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  // GitHub Pages 子路径部署（CI 环境自动生效）；本地 dev 保持根路径
+  base: process.env.CI ? '/digital-wardrobe/web/' : '/',
   plugins: [react()],
   resolve: {
     alias: {

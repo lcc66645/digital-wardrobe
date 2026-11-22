@@ -1,0 +1,101 @@
+name: 部署前端到 GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# GitHub Pages 部署所需权限
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 避免多次部署并发冲突
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: 安装依赖
+        run: npm ci
+
+      - name: 构建 shared 基础包（lib 为 gitignore 产物，CI 中重新生成）
+        run: npm run build --workspace @dw/shared
+
+      - name: 构建 Web 管理后台（base: /digital-wardrobe/web/）
+        run: npm run build --workspace @dw/web-admin
+
+      - name: 构建 App 浏览器预览（base: /digital-wardrobe/app/）
+        run: npm run build:web --workspace @dw/mobile
+
+      - name: 组装 Pages 产物
+        run: |
+          mkdir -p _site/web _site/app
+          cp -r apps/web-admin/dist/. _site/web/
+          cp -r apps/mobile/web-preview/dist/. _site/app/
+          cat > _site/index.html <<'EOF'
+          <!doctype html>
+          <html lang="zh-CN">
+          <head>
+            <meta charset="utf-8" />
+            <meta name="viewport" content="width=device-width, initial-scale=1" />
+            <title>数字衣橱 · 前端公网预览</title>
+            <style>
+              body { margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center;
+                background:linear-gradient(135deg,#FFF8F0,#FFE4EC);
+                font-family:-apple-system,'Segoe UI','Microsoft YaHei',sans-serif; padding:24px; }
+              .card { background:#fff; border-radius:18px; padding:28px 32px;
+                box-shadow:0 12px 40px rgba(61,44,30,.18); width:340px; }
+              h1 { color:#3D2C1E; font-size:22px; margin:0 0 4px; }
+              p.sub { color:#8A7565; font-size:13px; margin:0 0 20px; }
+              a { display:block; padding:16px; border-radius:12px; text-decoration:none;
+                color:#3D2C1E; font-weight:600; margin-bottom:12px; }
+              a.app { background:#FFD93D; }
+              a.web { background:#FFB6C1; }
+              small { color:#8A7565; font-size:12px; line-height:1.7; display:block; margin-top:8px; }
+            </style>
+          </head>
+          <body>
+            <div class="card">
+              <h1>数字衣橱</h1>
+              <p class="sub">软硬一体穿搭应用 · 前端公网预览</p>
+              <a class="app" href="./app/">📱 App 浏览器预览（react-native-web）</a>
+              <a class="web" href="./web/">🖥️ Web 管理后台</a>
+              <small>说明：GitHub Pages 仅托管静态前端，后端 NestJS 服务与数据库未在公网运行；
+              需联后端的操作（登录、数据加载）会提示网络错误，本机启动后端后可完整使用。</small>
+            </div>
+          </body>
+          </html>
+          EOF
+
+      - name: 配置 Pages
+        uses: actions/configure-pages@v5
+
+      - name: 上传 Pages 产物
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: 部署到 GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -6,7 +6,8 @@ node_modules/
 # Build output
 dist/
 build/
-lib/
+# 仅忽略 shared 包的编译产物目录（不能写 lib/，否则会误伤各应用的 src/lib 源码）
+/packages/shared/lib/
 *.tsbuildinfo
 
 # React Native
