@@ -22,6 +22,8 @@ const instance: AxiosInstance = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
+export { instance as axiosInstance };
+
 // 请求拦截：自动注入 Bearer Token
 instance.interceptors.request.use((config) => {
   const token = getToken();
